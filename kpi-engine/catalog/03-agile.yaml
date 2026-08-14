@@ -1,0 +1,99 @@
+# Domain 3 of 8: Agile / Scrum execution quality
+domain:
+  id: agile
+  name: Agile Execution
+  order: 3
+  description: Sprint-level predictability, quality and estimation health.
+  audience: [scrum-master, product-owner, delivery-manager]
+
+kpis:
+  - id: agile.velocity_points
+    revision: 1
+    name: Sprint Velocity (Story Points)
+    formula: sum(StoryPoints where StateCategory = 'Completed') per iteration
+    unit: points/iteration
+    direction: higher_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [StoryPoints, IterationSK] }]
+    benchmarks: { target: "stable rolling 3-sprint average, coefficient of variation < 0.2" }
+    caveats: [Cross-team comparison of story points is meaningless and is blocked by the agent.]
+
+  - id: agile.sprint_burndown
+    revision: 1
+    name: Sprint Burndown
+    formula: remaining_points_by_day vs ideal_linear_burn
+    unit: points remaining
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItemSnapshot }]
+    interpretation: A flat line until the final two days signals batch-at-the-end delivery and hidden risk.
+
+  - id: agile.say_do_ratio
+    revision: 1
+    name: Commitment / Say-Do Ratio
+    formula: (points_completed / points_committed_at_sprint_start) * 100
+    unit: percent
+    direction: target_band
+    feasibility: derived
+    sources: [{ system: azure-devops-analytics, entity: WorkItemRevisions, notes: "sprint-start baseline from revision history" }]
+    benchmarks: { good: "80–100%", warn: "60–80% or > 120%", bad: "< 60%" }
+    thresholds: { good: 80, warn: 60, bad: 40 }
+    interpretation: >-
+      Consistently above 100% is as much a problem as below 80% — it means the team is
+      sandbagging commitments and the forecast is not usable for planning.
+
+  - id: agile.escaped_defects
+    revision: 1
+    name: Escaped Defects
+    formula: (production_origin_bugs / total_bugs) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, filter: "WorkItemType eq 'Bug'" }]
+    thresholds: { good: 10, warn: 25, bad: 40 }
+
+  - id: agile.defect_density
+    revision: 1
+    name: Defect Density
+    formula: count(bugs) / count(completed_stories)
+    unit: bugs/story
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems }]
+    thresholds: { good: 0.3, warn: 1.0, bad: 2.0 }
+
+  - id: agile.rework_rate
+    revision: 1
+    name: Rework Rate
+    formula: (reopened_items / completed_items) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-analytics, entity: WorkItemRevisions, notes: "detect Done -> non-Done transitions" }]
+    thresholds: { good: 5, warn: 15, bad: 25 }
+    interpretation: Usually a definition-of-done problem, not a coding problem.
+
+  - id: agile.backlog_aging
+    revision: 1
+    name: Backlog Aging
+    formula: count(open_items where age_days > 90) / count(open_items) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [CreatedDate, State] }]
+    thresholds: { good: 25, warn: 50, bad: 70 }
+    interpretation: >-
+      Aged backlog is an inventory cost — it is refined, re-estimated and re-read repeatedly
+      without ever being delivered.
+
+  - id: agile.estimation_accuracy
+    revision: 1
+    name: Estimation Accuracy
+    formula: abs(OriginalEstimate - CompletedWork) / OriginalEstimate * 100
+    unit: percent deviation
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [OriginalEstimate, CompletedWork] }]
+    benchmarks: { good: "within ±20%" }
+    thresholds: { good: 20, warn: 40, bad: 75 }
+    caveats: [Only computable where teams track hours. Points-only teams should use say-do ratio instead.]

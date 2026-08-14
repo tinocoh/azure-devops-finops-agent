@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kpi-server:
+    name: KPI server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # A KPI computed by a formula nobody reviewed is the failure mode this whole
+      # repository is designed to prevent.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  catalog:
+    name: KPI catalog integrity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kpi-engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      # Fails if docs/KPI-CATALOG.md has drifted from the YAML definitions, so the
+      # published formula can never differ from the one the engine executes.
+      - name: Check generated catalog is current
+        run: npm run docs:check
+
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  copilot-studio:
+    name: Copilot Studio assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Copilot Studio rejects instructions above 8,000 characters at save time. Catching
+      # it here avoids a failed deployment.
+      - name: Instructions within platform character limit
+        run: |
+          FILE=copilot-studio/solution/agent/instructions.md
+          LENGTH=$(wc -m < "$FILE")
+          echo "instructions.md is $LENGTH characters (limit 8000)"
+          if [ "$LENGTH" -gt 8000 ]; then
+            echo "::error file=$FILE::Instructions exceed the 8,000-character Copilot Studio limit"
+            exit 1
+          fi
+
+      - name: Adaptive cards are valid JSON
+        run: |
+          for f in copilot-studio/adaptive-cards/*.json copilot-studio/scripts/settings/*.json; do
+            python3 -c "import json,sys; json.load(open('$f'))" || { echo "::error file=$f::invalid JSON"; exit 1; }
+            echo "ok: $f"
+          done
+
+      - name: No secrets in settings files
+        run: |
+          if grep -rIn --include='*.json' -E '"(clientSecret|password|pat|apiKey)"\s*:\s*"[^"]{8,}"' copilot-studio/scripts/settings/; then
+            echo "::error::A secret appears to be committed. This deployment uses workload identity federation; no secret should exist."
+            exit 1
+          fi
+          echo "ok: no secrets found"
+
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem copilot-studio/scripts -Filter *.ps1 -Recurse | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) {
+              Write-Host "::error file=$($_.FullName)::$($errors[0].Message)"
+              $failed = $true
+            } else {
+              Write-Host "ok: $($_.Name)"
+            }
+          }
+          if ($failed) { exit 1 }
+
+  infrastructure:
+    name: Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Bicep
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+      - name: Lint Bicep
+        run: az bicep lint --file infra/main.bicep

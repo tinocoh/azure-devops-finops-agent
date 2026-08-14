@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /mcp-server
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /dashboard
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /kpi-engine
+    schedule: { interval: monthly }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

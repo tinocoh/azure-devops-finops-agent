@@ -1,0 +1,113 @@
+# Domain 4 of 8: Code and review health
+domain:
+  id: code
+  name: Code & Review Health
+  order: 4
+  description: >-
+    Engineering hygiene at the pull-request and build level. Every metric here is team- or
+    repository-scoped. Author-level aggregation is deliberately unsupported — see
+    docs/RESPONSIBLE-METRICS.md.
+  audience: [engineering-lead, tech-lead]
+
+kpis:
+  - id: code.pr_cycle_time
+    revision: 1
+    name: Pull Request Cycle Time
+    formula: percentile_50(pr_closed_date - pr_created_date)
+    unit: hours
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-rest, entity: git/pullrequests }]
+    thresholds: { good: 24, warn: 72, bad: 168 }
+    percentiles: [50, 85]
+
+  - id: code.review_latency
+    revision: 1
+    name: Time to First Review
+    formula: percentile_50(first_review_comment_date - pr_created_date)
+    unit: hours
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-rest, entity: git/pullrequests/threads }]
+    thresholds: { good: 4, warn: 24, bad: 48 }
+    interpretation: >-
+      The highest-leverage metric in this domain. Review latency is pure queue time and is
+      usually a scheduling problem, not a capacity problem.
+
+  - id: code.pr_size
+    revision: 1
+    name: Pull Request Size
+    formula: percentile_50(lines_added + lines_deleted)
+    unit: lines
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-rest, entity: git/pullrequests/iterations/changes }]
+    thresholds: { good: 200, warn: 400, bad: 1000 }
+    interpretation: >-
+      Review effectiveness collapses above roughly 400 lines. Large PRs correlate with both
+      longer review latency and higher change failure rate.
+
+  - id: code.revert_rate
+    revision: 1
+    name: Revert Rate
+    formula: (revert_commits / total_commits) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-rest, entity: git/commits, notes: "pattern match on revert commit messages" }]
+    thresholds: { good: 1, warn: 3, bad: 6 }
+
+  - id: code.build_success_rate
+    revision: 1
+    name: Build Success Rate
+    formula: SucceededCount / (SucceededCount + FailedCount) * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: PipelineRuns, fields: [SucceededCount, FailedCount] }]
+    thresholds: { good: 90, warn: 75, bad: 60 }
+    interpretation: A success rate near 100% on the default branch is healthy; near 100% everywhere may mean CI is not running enough checks.
+
+  - id: code.build_duration
+    revision: 1
+    name: Build Duration
+    formula: percentile_50(RunDurationSeconds) / 60
+    unit: minutes
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: PipelineRuns, fields: [RunDurationSeconds] }]
+    thresholds: { good: 10, warn: 20, bad: 45 }
+    interpretation: Directly drives both developer feedback loop quality and pipeline cost — the only KPI that is simultaneously a DevEx metric and a FinOps metric.
+
+  - id: code.test_pass_rate
+    revision: 1
+    name: Test Pass Rate
+    formula: (PassedCount / TotalCount) * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: TestResultsDaily }]
+    thresholds: { good: 98, warn: 90, bad: 80 }
+
+  - id: code.flaky_test_rate
+    revision: 1
+    name: Flaky Test Rate
+    formula: (flaky_tests / total_tests) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: TestResultsDaily, notes: "Azure Pipelines flaky detection must be enabled" }]
+    thresholds: { good: 1, warn: 3, bad: 8 }
+    interpretation: Flaky tests are a compound cost — they burn pipeline minutes on reruns and erode trust in the whole suite.
+    pairs_with: [pipeline.failed_run_waste]
+
+  - id: code.code_coverage
+    revision: 1
+    name: Code Coverage
+    formula: (covered_lines / total_lines) * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-rest, entity: test/codecoverage, notes: "requires a coverage publishing task in the pipeline" }]
+    thresholds: { good: 80, warn: 60, bad: 40 }
+    caveats: [A target rather than a goal. Coverage is trivially gameable and should never be a performance objective.]

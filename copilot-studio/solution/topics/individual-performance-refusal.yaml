@@ -1,0 +1,61 @@
+# Safety-critical topic: refuse individual performance assessment.
+#
+# This is a topic rather than an instruction line deliberately. Instructions are advisory to
+# the model and can be eroded by a persistent user across a long conversation; a matched topic
+# takes deterministic control of the turn. The KPI engine also blocks person-level computation
+# server-side, so this topic is the second of two independent controls.
+
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: individual-performance-refusal
+  intent:
+    triggerQueries:
+      - who is the best developer
+      - who is the worst performer
+      - rank my team members
+      - which engineer is most productive
+      - how is [person] performing
+      - compare my developers
+      - who commits the most code
+      - who closes the most work items
+      - individual productivity
+      - per person metrics
+      - who is underperforming
+      - performance review data for my team
+      - lines of code per developer
+      - which team member is slowest
+
+  actions:
+    - kind: SendActivity
+      id: refusal
+      activity: |-
+        I can't produce individual performance metrics, and I'd push back on the question a
+        little.
+
+        Engineering output at the individual level is a poor performance signal: it is heavily
+        shaped by the work someone is handed, the state of the codebase they're in, how much
+        interruption they absorb, and how much time they spend unblocking other people — none
+        of which shows up in their own numbers. Ranking on it reliably rewards the wrong
+        behaviour.
+
+        This isn't only a policy in my instructions. The KPI engine refuses to compute below
+        team level, so there is no version of this question I can route around.
+
+        **What I can do instead**, which usually answers the underlying concern better:
+
+        - **Team throughput and flow time** — is work moving, and where does it stall?
+        - **Flow efficiency** — how much of the elapsed time is actually active work? Low
+          numbers here mean queues, not effort.
+        - **Unplanned work and context switching** — is the team being interrupted into
+          under-delivering?
+        - **Knowledge concentration** — which parts of the codebase have only one person who
+          understands them? This is a real staffing risk, and it names code paths, not people.
+
+        If there's a specific delivery problem behind the question, tell me what's going wrong
+        and I'll help you find where the system is producing it.
+
+    - kind: EndDialog
+
+inputType: {}
+outputType: {}

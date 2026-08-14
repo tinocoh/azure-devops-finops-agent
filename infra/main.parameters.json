@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": { "value": "adokpi" },
+    "environment": { "value": "${AZURE_ENV_NAME=dev}" },
+    "location": { "value": "${AZURE_LOCATION}" },
+    "adoOrganization": { "value": "${ADO_ORGANIZATION}" },
+    "costSubscriptionIds": { "value": [] },
+    "privateNetworking": { "value": false },
+    "vnetResourceId": { "value": "" },
+    "dashboardOrigin": { "value": "${DASHBOARD_ORIGIN=http://localhost:5173}" },
+    "containerImage": { "value": "${CONTAINER_IMAGE=ghcr.io/tinocodemos/ado-kpi-mcp-server:latest}" },
+    "logRetentionDays": { "value": 90 }
+  }
+}

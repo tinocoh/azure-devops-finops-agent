@@ -1,0 +1,63 @@
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Reference data may contain real rate cards, budgets and contract revenue.
+# The committed files are illustrative; a real deployment supplies its own.
+reference-data/*.local.yaml
+reference-data/prod/
+
+# Copilot Studio environment settings — these hold tenant and environment ids.
+# Only the .example.json files are committed.
+copilot-studio/scripts/settings/*.json
+!copilot-studio/scripts/settings/*.example.json
+
+# Exported Power Platform solutions
+copilot-studio/out/
+*.zip
+
+# Azure
+.azure/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test output
+coverage/
+.nyc_output/
+test-results/
+
+# Never commit credentials
+*.pem
+*.key
+*.pfx
+*.p12
+secrets.json

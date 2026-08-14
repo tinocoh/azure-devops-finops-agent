@@ -1,0 +1,113 @@
+# Domain 6 of 8: Team performance and capacity
+#
+# GOVERNANCE NOTICE
+# Every KPI in this domain carries a `min_aggregation` field. The KPI engine REFUSES to compute
+# any of them below the stated aggregation level. This is enforced in code, not by convention —
+# see mcp-server/src/kpi/guards.ts and docs/RESPONSIBLE-METRICS.md.
+domain:
+  id: team
+  name: Team Performance & Capacity
+  order: 6
+  description: >-
+    Capacity, focus and sustainability at team level. These metrics answer "is this team set up
+    to succeed" — never "is this person performing".
+  audience: [delivery-manager, engineering-lead, resource-manager]
+  governance: team-level-only
+
+kpis:
+  - id: team.capacity_vs_actual
+    revision: 1
+    name: Capacity vs Actual
+    formula: sum(CompletedWork) / sum(planned_capacity_hours) * 100
+    unit: percent
+    direction: target_band
+    feasibility: native
+    min_aggregation: team
+    sources:
+      - { system: azure-devops-rest, entity: work/teamsettings/iterations/capacities }
+      - { system: azure-devops-analytics, entity: WorkItems, fields: [CompletedWork] }
+    benchmarks: { target: ">= 80% alignment" }
+    thresholds: { good: 85, warn: 65, bad: 50 }
+
+  - id: team.utilization_rate
+    revision: 1
+    name: Utilisation Rate
+    formula: sum(CompletedWork) / sum(available_hours) * 100
+    unit: percent
+    direction: target_band
+    feasibility: native
+    min_aggregation: team
+    sensitivity: high
+    sources: [{ system: azure-devops-rest, entity: work/teamsettings/iterations/capacities }]
+    benchmarks: { target: "70–80% team average" }
+    thresholds: { good: 75, warn: 90, bad: 95 }
+    interpretation: >-
+      Deliberately banded, not maximised. Sustained utilisation above 85% removes all slack and
+      empirically increases lead time — queueing theory, not opinion. Treat a high reading as a
+      risk signal, not an achievement.
+    caveats:
+      - Must never be presented per person. The agent blocks per-person breakdown of this KPI.
+
+  - id: team.billable_ratio
+    revision: 1
+    name: Billable Ratio
+    formula: billable_hours / total_hours * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: derived
+    min_aggregation: team
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, notes: "requires a billable tag or custom field convention" }]
+    benchmarks: { target: "70–80% for professional services" }
+    thresholds: { good: 75, warn: 60, bad: 45 }
+
+  - id: team.focus_factor
+    revision: 1
+    name: Focus Factor
+    formula: velocity / (team_size * available_hours_per_person)
+    unit: ratio
+    direction: target_band
+    feasibility: derived
+    min_aggregation: team
+    sources: [{ system: derived, entity: "agile.velocity_points + capacity" }]
+    benchmarks: { target: "0.6–0.8" }
+    interpretation: Below 0.6 usually means interruption load, not low effort.
+
+  - id: team.unplanned_work
+    revision: 1
+    name: Unplanned Work Percentage
+    formula: items_added_after_sprint_start / total_sprint_items * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    min_aggregation: team
+    sources: [{ system: azure-devops-analytics, entity: WorkItemRevisions }]
+    thresholds: { good: 20, warn: 35, bad: 50 }
+    interpretation: The primary explanation for a poor say-do ratio. Diagnose this before challenging a team on commitment.
+    pairs_with: [agile.say_do_ratio]
+
+  - id: team.context_switching
+    revision: 1
+    name: Context Switching
+    formula: count(work_item_reassignments) / count(work_items) 
+    unit: reassignments/item
+    direction: lower_is_better
+    feasibility: derived
+    min_aggregation: team
+    sensitivity: high
+    sources: [{ system: azure-devops-analytics, entity: WorkItemRevisions, fields: [AssignedTo] }]
+    thresholds: { good: 0.3, warn: 1.0, bad: 2.0 }
+    caveats: [Team-level only. Reassignment counts per person are a surveillance metric and are blocked.]
+
+  - id: team.knowledge_concentration
+    revision: 1
+    name: Knowledge Concentration (Bus Factor)
+    formula: count(components where top_contributor_share > 0.8)
+    unit: components at risk
+    direction: lower_is_better
+    feasibility: external
+    min_aggregation: repository
+    sources: [{ system: azure-devops-rest, entity: git/commits, notes: "requires path-level aggregation; no native Analytics entity" }]
+    benchmarks: { target: ">= 2 substantive contributors per component" }
+    interpretation: >-
+      Reported as a risk register of components, never as a ranking of people. The output names
+      code paths, not authors.

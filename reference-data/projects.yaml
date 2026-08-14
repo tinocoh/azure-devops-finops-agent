@@ -1,0 +1,53 @@
+# Project financial baseline — required for the profitability domain.
+#
+# `key` must match the Azure DevOps project name so the engine can join automatically.
+# Budget, revenue and scope come from the finance system, not from Azure DevOps.
+
+projects:
+  - key: Contoso Payments
+    name: Payments Modernisation
+    budgetAtCompletion: 2400000
+    contractRevenue: 3200000
+    directCosts: 60000
+    storyPointsInScope: 4200
+    startDate: 2026-01-01
+    endDate: 2026-12-31
+    standardRate: 180
+    actualBilledRate: 162
+    workingHours: { start: "08:00", end: "18:00", days: [mon, tue, wed, thu, fri] }
+
+  - key: Contoso Retail Platform
+    name: Retail Platform Replatform
+    budgetAtCompletion: 5100000
+    contractRevenue: 5600000
+    directCosts: 210000
+    storyPointsInScope: 9800
+    startDate: 2025-10-01
+    endDate: 2027-03-31
+    standardRate: 175
+    actualBilledRate: 138
+    workingHours: { start: "08:00", end: "18:00", days: [mon, tue, wed, thu, fri] }
+
+  - key: Contoso Data Platform
+    name: Unified Data Platform
+    budgetAtCompletion: 3300000
+    contractRevenue: 4100000
+    directCosts: 145000
+    storyPointsInScope: 6100
+    startDate: 2026-02-01
+    endDate: 2027-01-31
+    standardRate: 190
+    actualBilledRate: 181
+    workingHours: { start: "08:00", end: "18:00", days: [mon, tue, wed, thu, fri] }
+
+  - key: Contoso Mobile
+    name: Mobile Experience
+    budgetAtCompletion: 1450000
+    contractRevenue: 1520000
+    directCosts: 35000
+    storyPointsInScope: 2600
+    startDate: 2026-03-01
+    endDate: 2026-11-30
+    standardRate: 168
+    actualBilledRate: 121
+    workingHours: { start: "08:00", end: "18:00", days: [mon, tue, wed, thu, fri] }

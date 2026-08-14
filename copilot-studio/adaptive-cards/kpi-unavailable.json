@@ -1,0 +1,87 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "_comment": [
+    "Shown when a KPI cannot be computed. This is a deliberate design decision: a missing",
+    "input is presented as an actionable configuration task with a named owner, rather than",
+    "as an error or — far worse — as a zero."
+  ],
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            { "type": "TextBlock", "text": "⚠", "size": "Large", "color": "Warning" }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${kpiName} is not available",
+              "weight": "Bolder",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "${reason}",
+              "wrap": true,
+              "isSubtle": true,
+              "spacing": "None",
+              "size": "Small"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "isVisible": "${count(missingInputs) > 0}",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Missing inputs",
+          "weight": "Bolder",
+          "size": "Small",
+          "isSubtle": true
+        },
+        {
+          "type": "TextBlock",
+          "$data": "${missingInputs}",
+          "text": "• `${$data}`",
+          "wrap": true,
+          "size": "Small",
+          "spacing": "None"
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "This value is withheld rather than estimated. A guessed labour rate or budget produces a board-ready number that is wrong.",
+      "wrap": true,
+      "size": "Small",
+      "isSubtle": true,
+      "separator": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Submit",
+      "title": "Who fixes this?",
+      "data": { "text": "who owns this metric" }
+    },
+    {
+      "type": "Action.Submit",
+      "title": "What can you measure instead?",
+      "data": { "text": "what KPIs are available without financial data" }
+    }
+  ]
+}

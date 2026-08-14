@@ -1,0 +1,107 @@
+# Domain 8 of 8: Cloud FinOps linkage
+#
+# Connects Azure resource spend to the Azure DevOps projects and teams that cause it.
+# Aligned to the FinOps Foundation Framework capabilities: Allocation, Reporting & Analytics,
+# Unit Economics, Anomaly Management, Workload Optimisation.
+domain:
+  id: cloudfinops
+  name: Cloud FinOps Linkage
+  order: 8
+  description: >-
+    Cost allocation from Azure Cost Management back to the delivery unit that owns it. Requires a
+    tagging contract between the platform team and the delivery teams.
+  audience: [finops-practitioner, platform-engineer, cto]
+  requires: [tagging-contract]
+
+tagging_contract:
+  description: >-
+    Every Azure resource in scope must carry these tags. Coverage below 95% makes allocation
+    unreliable and the agent reports the coverage figure alongside every allocated cost.
+  required_tags:
+    ado-organization: Azure DevOps organisation name
+    ado-project: Azure DevOps project name — the allocation key
+    ado-team: Owning team, where finer granularity is needed
+    environment: prod | staging | dev | test | sandbox
+    cost-center: Finance allocation code
+  enforcement: Azure Policy deny or modify effect, plus the tag coverage KPI below.
+
+kpis:
+  - id: cloudfinops.tag_coverage
+    revision: 1
+    name: Cost Allocation Tag Coverage
+    formula: cost_of_tagged_resources / total_cost * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: external
+    sources: [{ system: azure-cost-management, entity: costdetails, notes: "group by tag presence" }]
+    thresholds: { good: 95, warn: 80, bad: 60 }
+    interpretation: >-
+      The gateway KPI for this entire domain. Every allocated figure below is qualified by this
+      percentage, and the agent states it explicitly in any answer involving allocated cost.
+
+  - id: cloudfinops.cost_per_project
+    revision: 1
+    name: Cloud Cost per Azure DevOps Project
+    formula: sum(cost where tag['ado-project'] = project)
+    unit: currency/month
+    direction: lower_is_better
+    feasibility: external
+    sources: [{ system: azure-cost-management, entity: costdetails, notes: "FOCUS-format export preferred for cross-provider consistency" }]
+    interpretation: The showback figure. Becomes chargeback only when tag coverage is above 95%.
+
+  - id: cloudfinops.nonprod_waste
+    revision: 1
+    name: Non-Production Off-Hours Waste
+    formula: nonprod_cost_outside_working_hours / nonprod_cost_total * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-cost-management, entity: costdetails, filter: "tag['environment'] in (dev, test, staging)" }
+      - { system: reference-data, entity: projects.yaml, field: workingHours }
+    thresholds: { good: 20, warn: 40, bad: 60 }
+    interpretation: >-
+      Non-production environments running 168 hours a week to serve a 45-hour working week carry
+      roughly 73% idle time. Auto-shutdown schedules are the standard remedy and the agent
+      quantifies the saving before recommending one.
+
+  - id: cloudfinops.idle_resource_cost
+    revision: 1
+    name: Idle Development Resource Cost
+    formula: sum(cost of nonprod resources where utilization < idle_threshold)
+    unit: currency/month
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-cost-management, entity: costdetails }
+      - { system: azure-monitor, entity: metrics, notes: "CPU and network utilisation over the window" }
+    interpretation: Read-only detection. Remediation scripts are generated for human review and are never executed by the agent.
+
+  - id: cloudfinops.cost_per_deployment
+    revision: 1
+    name: Cloud Cost per Deployment
+    formula: cloud_infrastructure_cost / count(production_deployments)
+    unit: currency/deployment
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-cost-management, entity: costdetails }
+      - { system: azure-devops-analytics, entity: PipelineRuns }
+    interpretation: >-
+      A unit-economics metric. It should fall as deployment frequency rises against fixed
+      infrastructure — if it does not, the platform is not amortising.
+    pairs_with: [delivery.deployment_frequency]
+
+  - id: cloudfinops.cost_per_engineer
+    revision: 1
+    name: Cloud Cost per Engineer
+    formula: total_nonprod_cloud_cost / count(active_contributors)
+    unit: currency/engineer/month
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-cost-management, entity: costdetails }
+      - { system: azure-devops-analytics, entity: WorkItems, notes: "distinct contributor count, team level only" }
+    interpretation: >-
+      A capacity-planning unit metric for platform teams. Reported at organisation and team level
+      only; per-person cost attribution is blocked by the engine.

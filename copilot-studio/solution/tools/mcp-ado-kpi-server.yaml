@@ -1,0 +1,74 @@
+# MCP tool registration for Copilot Studio.
+#
+# Copilot Studio consumes MCP over Streamable HTTP only. The server exposes eleven tools;
+# Copilot Studio discovers them dynamically, so adding a tool server-side requires no change
+# here — which is the main reason MCP was chosen over eleven individual custom connectors.
+
+schemaVersion: 1
+kind: mcp
+name: ado-kpi-server
+displayName: Azure DevOps KPI server
+description: >-
+  Computes delivery performance, flow, agile, code health, pipeline FinOps, team capacity,
+  project profitability and cloud cost allocation KPIs from Azure DevOps Analytics and Azure
+  Cost Management.
+
+transport: streamableHttp
+endpoint: "{{ environmentVariable:adoKpi_mcpEndpoint }}"
+
+authentication:
+  type: oauth2
+  mode: manual
+  # The user's token flows through to the MCP server, which exchanges it on-behalf-of for
+  # Azure DevOps. Every query therefore runs with the caller's own Azure DevOps permissions:
+  # a user who cannot see a project in the portal cannot see it through the agent either.
+  passUserToken: true
+  authorizationUrl: https://login.microsoftonline.com/{{ tenantId }}/oauth2/v2.0/authorize
+  tokenUrl: https://login.microsoftonline.com/{{ tenantId }}/oauth2/v2.0/token
+  scopes:
+    - api://{{ environmentVariable:adoKpi_clientId }}/KpiQuery.Read
+
+# Documented for review. Discovery is dynamic at runtime.
+expectedTools:
+  - name: list_kpis
+    purpose: Browse the KPI catalog.
+  - name: describe_kpi
+    purpose: Full definition, formula, benchmark and caveats for one KPI.
+  - name: get_scorecard
+    purpose: Every KPI for a scope and period, scored by domain. The primary tool.
+  - name: get_headline_kpis
+    purpose: Eight headline KPIs. Lower cost than a full scorecard.
+  - name: get_kpis
+    purpose: A named subset of KPIs.
+  - name: get_kpi_trend
+    purpose: Time series for one KPI. Required before any claim about direction of travel.
+  - name: detect_anomalies
+    purpose: Statistical outlier detection across headline KPIs.
+  - name: get_project_profitability
+    purpose: Earned value, CPI, SPI, EAC, margin.
+  - name: get_pipeline_economics
+    purpose: Pipeline minutes, waste, queue time, cost per build.
+  - name: get_cloud_cost_allocation
+    purpose: Azure spend attributed to Azure DevOps projects, with tag coverage.
+  - name: list_scopes
+    purpose: Resolve project and team names before querying.
+
+# ── operational limits ─────────────────────────────────────────────────────────
+# These mirror the platform constraints that shaped ADR-0001. They are recorded here so a
+# future change that breaches them is caught in review rather than in production.
+limits:
+  # Copilot Studio rejects connector payloads above 5 MB. Every tool aggregates server-side
+  # and returns a summary, so responses are kilobytes, not megabytes.
+  maxResponseBytes: 5242880
+  # Synchronous actions must complete well inside the platform timeout. The KPI server caps
+  # its own OData paging and fails loudly rather than returning a truncated aggregate.
+  timeoutSeconds: 100
+  retryPolicy:
+    attempts: 2
+    backoff: exponential
+
+networking:
+  # Production is reached over Power Platform VNet subnet delegation; the MCP server itself
+  # sits behind a private endpoint with no public ingress.
+  requiresVnetDelegation: true
+  allowedIpRanges: []

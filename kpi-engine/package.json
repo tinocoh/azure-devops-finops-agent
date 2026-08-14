@@ -1,0 +1,14 @@
+{
+  "name": "ado-kpi-catalog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The KPI catalog: 62 versioned definitions in YAML, plus the documentation generator. Kept separate from the server so the definitions can be reviewed and consumed independently of any runtime.",
+  "scripts": {
+    "docs": "node src/generate-docs.mjs",
+    "docs:check": "node src/generate-docs.mjs --check"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  }
+}

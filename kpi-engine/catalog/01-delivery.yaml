@@ -1,0 +1,131 @@
+# Azure DevOps FinOps & Delivery Intelligence — KPI catalog
+# Domain 1 of 8: Delivery performance (DORA)
+#
+# Schema is defined in kpi-engine/catalog/_schema.json
+# Every KPI is versioned. Changing a formula REQUIRES bumping `revision` and adding
+# a `changelog` entry, because downstream trend data is only comparable within a revision.
+
+domain:
+  id: delivery
+  name: Delivery Performance
+  order: 1
+  description: >-
+    The four DORA metrics plus deployment rework rate. These describe how fast and how safely
+    change reaches production. They are team-level metrics and must never be attributed to
+    individuals.
+  audience: [engineering-lead, delivery-manager, cto]
+
+kpis:
+  - id: delivery.deployment_frequency
+    revision: 1
+    name: Deployment Frequency
+    short_name: DF
+    formula: count(successful_production_deployments) / period_days
+    formula_display: "DF = successful production deployments ÷ days in period"
+    unit: deployments/day
+    direction: higher_is_better
+    feasibility: derived
+    sources:
+      - system: azure-devops-analytics
+        entity: PipelineRuns
+        notes: >-
+          Requires a production convention. Configure `productionSelector` to match by pipeline
+          name, stage name, environment name or tag. Without it the KPI is not computable and the
+          agent must say so rather than guess.
+    benchmarks:
+      elite: ">= 1 per day"
+      high: "1 per day .. 1 per week"
+      medium: "1 per week .. 1 per month"
+      low: "< 1 per month"
+    thresholds: { good: 1.0, warn: 0.14, bad: 0.03 }
+    interpretation: >-
+      High frequency with a low change failure rate indicates small, safe batches. High frequency
+      with a rising change failure rate indicates the team is shipping faster than it can verify.
+    pairs_with: [delivery.change_failure_rate]
+    caveats:
+      - Counts deployments, not value. Pair with flow distribution before drawing conclusions.
+
+  - id: delivery.change_lead_time
+    revision: 1
+    name: Change Lead Time
+    short_name: CLT
+    formula: percentile_50(production_deploy_time - first_commit_time)
+    formula_display: "CLT = median(production deploy timestamp − first commit timestamp of the change)"
+    unit: hours
+    direction: lower_is_better
+    feasibility: derived
+    sources:
+      - system: azure-devops-rest
+        entity: git/commits
+      - system: azure-devops-analytics
+        entity: PipelineRuns
+    benchmarks:
+      elite: "< 1 hour"
+      high: "1 day .. 1 week"
+      medium: "1 week .. 1 month"
+      low: "> 1 month"
+    thresholds: { good: 24, warn: 168, bad: 720 }
+    interpretation: >-
+      Reported as a median, never a mean — lead-time distributions are heavily right-skewed and a
+      mean is dominated by a handful of stalled changes.
+    caveats:
+      - Requires commit-to-deployment traceability. Squash merges without linked work items break it.
+
+  - id: delivery.change_failure_rate
+    revision: 1
+    name: Change Failure Rate
+    short_name: CFR
+    formula: (failed_production_deployments / total_production_deployments) * 100
+    formula_display: "CFR = failed production deployments ÷ total production deployments × 100"
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    sources:
+      - system: azure-devops-analytics
+        entity: PipelineRuns
+        fields: [FailedCount, SucceededCount]
+    benchmarks: { elite: "0–5%", high: "5–10%", medium: "10–15%", low: "> 15%" }
+    thresholds: { good: 5, warn: 15, bad: 30 }
+    interpretation: >-
+      A deployment counts as failed if it required a hotfix, rollback or patch — not merely if the
+      pipeline reported a red run. Pipeline failure is a proxy; configure `failureSelector` to
+      refine it where incident data is available.
+    pairs_with: [delivery.deployment_frequency]
+
+  - id: delivery.mttr
+    revision: 1
+    name: Failed Deployment Recovery Time
+    short_name: MTTR
+    formula: percentile_50(service_restored_time - incident_detected_time)
+    formula_display: "MTTR = median(restore timestamp − incident detection timestamp)"
+    unit: hours
+    direction: lower_is_better
+    feasibility: derived
+    sources:
+      - system: azure-devops-analytics
+        entity: WorkItems
+        filter: "WorkItemType eq 'Bug' and severity/priority indicates production incident"
+        fields: [ActivatedDate, ClosedDate]
+    benchmarks: { elite: "< 1 hour", high: "< 1 day", medium: "1 day .. 1 week", low: "> 1 week" }
+    thresholds: { good: 1, warn: 24, bad: 168 }
+    caveats:
+      - Only as good as the incident-tagging convention. If incidents live in ServiceNow or
+        PagerDuty rather than Azure Boards, this KPI must be marked unavailable, not estimated.
+
+  - id: delivery.deployment_rework_rate
+    revision: 1
+    name: Deployment Rework Rate
+    short_name: DRR
+    formula: (incident_triggered_deployments / total_production_deployments) * 100
+    formula_display: "DRR = incident-triggered deployments ÷ total production deployments × 100"
+    unit: percent
+    direction: lower_is_better
+    feasibility: derived
+    sources:
+      - system: azure-devops-analytics
+        entity: PipelineRuns
+    benchmarks: { elite: "< 5%", high: "5–10%", medium: "10–20%", low: "> 20%" }
+    thresholds: { good: 5, warn: 20, bad: 35 }
+    interpretation: >-
+      Added to the DORA set in the 2024 report as a stability counterweight to change failure rate.
+      Measures unplanned work created by deployments rather than deployments that failed outright.

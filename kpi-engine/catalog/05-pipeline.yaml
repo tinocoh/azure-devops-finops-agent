@@ -1,0 +1,103 @@
+# Domain 5 of 8: Pipeline / CI FinOps
+domain:
+  id: pipeline
+  name: Pipeline FinOps
+  order: 5
+  description: >-
+    The cost of running the delivery machine itself. This is the domain where engineering
+    behaviour converts most directly into a monthly invoice.
+  audience: [platform-engineer, finops-practitioner, engineering-lead]
+
+kpis:
+  - id: pipeline.minutes_consumed
+    revision: 1
+    name: Pipeline Minutes Consumed
+    formula: sum(RunDurationSeconds) / 60 grouped by agent_type
+    unit: minutes/month
+    direction: lower_is_better
+    feasibility: native
+    sources:
+      - { system: azure-devops-analytics, entity: PipelineRuns, fields: [RunDurationSeconds] }
+      - { system: azure-devops-analytics, entity: ParallelPipelineJobsSnapshot, api_version: "v4.0-preview", notes: "PREVIEW — monitor for breaking changes" }
+    benchmarks: { target: "within purchased parallel job capacity" }
+    interpretation: Split Microsoft-hosted from self-hosted; only Microsoft-hosted minutes carry a per-job cost.
+
+  - id: pipeline.queue_wait_time
+    revision: 1
+    name: Queue Wait Time
+    formula: percentile_50(QueueDurationSeconds)
+    unit: seconds
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: PipelineRuns, fields: [QueueDurationSeconds] }]
+    thresholds: { good: 30, warn: 300, bad: 900 }
+    interpretation: >-
+      The classic FinOps trade-off made visible. Buying another parallel job costs money;
+      queue time costs engineering hours. Quantify both before deciding.
+    pairs_with: [pipeline.agent_pool_utilization]
+
+  - id: pipeline.failed_run_waste
+    revision: 1
+    name: Failed-Run Waste
+    formula: sum(RunDurationSeconds where result = 'failed') / sum(RunDurationSeconds) * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: PipelineRuns }]
+    thresholds: { good: 5, warn: 15, bad: 30 }
+    interpretation: >-
+      Compute minutes spent on runs that produced no deployable artefact. Also reported in
+      currency via pipeline.cost_per_run. Usually the single largest quick win in this domain.
+    pairs_with: [code.flaky_test_rate]
+
+  - id: pipeline.agent_pool_utilization
+    revision: 1
+    name: Agent Pool Utilisation
+    formula: (busy_agent_seconds / (pool_size * period_seconds)) * 100
+    unit: percent
+    direction: target_band
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: TaskAgentPoolSizeSnapshots, api_version: "v4.0-preview" }]
+    benchmarks: { target: "60–80%" }
+    thresholds: { good: 70, warn: 40, bad: 20 }
+    interpretation: >-
+      Below 40% on self-hosted agents means idle infrastructure being paid for. Above 85%
+      means queue time is about to become the constraint.
+
+  - id: pipeline.cost_per_run
+    revision: 1
+    name: Cost per Pipeline Run
+    formula: total_pipeline_cost / count(pipeline_runs)
+    unit: currency/run
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-cost-management, entity: costdetails, notes: "self-hosted agent infrastructure cost" }
+      - { system: reference-data, entity: rates.yaml, field: parallelJobMonthlyCost }
+      - { system: azure-devops-analytics, entity: PipelineRuns }
+    interpretation: Requires a rate card. The agent reports this as unavailable rather than guessing when rates are not configured.
+
+  - id: pipeline.cost_per_successful_build
+    revision: 1
+    name: Cost per Successful Build
+    formula: total_pipeline_cost / count(successful_runs)
+    unit: currency/build
+    direction: lower_is_better
+    feasibility: external
+    sources: [{ system: derived, entity: "pipeline.cost_per_run + code.build_success_rate" }]
+    interpretation: >-
+      The honest version of cost per run. A pipeline with a 60% success rate costs 1.67× its
+      nominal per-run price to obtain one usable build.
+
+  - id: pipeline.artifact_storage_cost
+    revision: 1
+    name: Artifact Storage Cost
+    formula: max(0, total_gb - free_tier_gb) * rate_per_gb
+    unit: currency/month
+    direction: lower_is_better
+    feasibility: derived
+    sources:
+      - { system: azure-devops-rest, entity: artifacts/feeds, notes: "GB figure is not exposed by a stable REST endpoint; supply via reference data or organisation settings export" }
+      - { system: reference-data, entity: rates.yaml, field: artifactStorageRatePerGb }
+    benchmarks: { note: "2 GB included at no cost" }
+    interpretation: Almost always solved by a retention policy rather than by a purchase.

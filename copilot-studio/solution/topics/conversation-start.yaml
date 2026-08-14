@@ -1,0 +1,41 @@
+# Conversation start — sets expectations before the first question.
+#
+# Kept short. A long greeting in Teams is scrolled past; the value here is the scope and
+# period defaults, because a user who does not know the default period will misread the
+# first number they see.
+
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: conversation-start
+  actions:
+    - kind: SendActivity
+      id: greeting
+      activity: |-
+        I report on **delivery performance, engineering cost and project profitability** from
+        Azure DevOps.
+
+        Defaults: **{{ Env.adoKpi_defaultOrganization }}**, last 90 days. Say a project, team
+        or period at any point to change them.
+
+        Try:
+        - *How is Contoso Retail Platform doing?*
+        - *Where is pipeline money being wasted?*
+        - *Are we on budget and what is our margin?*
+        - *Anything I should worry about this month?*
+
+        Everything I report is team- or project-level, and every number comes with the period
+        it covers.
+
+    - kind: SetVariable
+      id: set-default-org
+      variable: Topic.Organization
+      value: "={{ Env.adoKpi_defaultOrganization }}"
+
+    - kind: SetVariable
+      id: set-default-period
+      variable: Topic.Period
+      value: "={{ Env.adoKpi_defaultPeriod }}"
+
+inputType: {}
+outputType: {}

@@ -1,0 +1,181 @@
+# Domain 7 of 8: Project profitability (Earned Value Management applied to Agile)
+#
+# Every KPI in this domain requires reference data that does not exist in Azure DevOps:
+# blended labour rates, budget at completion, and contract revenue. These are supplied via
+# reference-data/*.yaml. When they are absent the agent reports the KPI as UNAVAILABLE and
+# states which input is missing. It never estimates a rate.
+domain:
+  id: profitability
+  name: Project Profitability
+  order: 7
+  description: >-
+    Earned Value Management mapped onto Agile delivery. Story points are the physical-progress
+    proxy; money comes from the rate card and the contract.
+  audience: [delivery-manager, portfolio-manager, finance-partner, cfo]
+  requires_reference_data: [rates.yaml, projects.yaml]
+
+definitions:
+  BAC: Budget at Completion — total approved budget for the project
+  PV: Planned Value — BAC × planned percent complete at the reporting date
+  EV: Earned Value — BAC × (story points completed ÷ total story points in scope)
+  AC: Actual Cost — labour hours × blended loaded rate, plus direct costs
+
+kpis:
+  - id: profitability.actual_cost
+    revision: 1
+    name: Cost of Delivery (Actual Cost)
+    formula: sum(hours * blended_loaded_rate) + direct_costs
+    unit: currency
+    direction: lower_is_better
+    feasibility: external
+    sources:
+      - { system: azure-devops-analytics, entity: WorkItems, fields: [CompletedWork] }
+      - { system: reference-data, entity: rates.yaml }
+    interpretation: Loaded rate must include employer costs and overhead, not salary alone.
+
+  - id: profitability.earned_value
+    revision: 1
+    name: Earned Value
+    formula: BAC * (story_points_completed / story_points_in_scope)
+    unit: currency
+    direction: higher_is_better
+    feasibility: external
+    sources:
+      - { system: azure-devops-analytics, entity: WorkItems, fields: [StoryPoints] }
+      - { system: reference-data, entity: projects.yaml, field: budgetAtCompletion }
+    caveats:
+      - Valid only if scope is reasonably stable. Under heavy scope change EV must be rebaselined,
+        and the agent flags any project whose scope moved more than 15% in the period.
+
+  - id: profitability.cost_variance
+    revision: 1
+    name: Cost Variance
+    short_name: CV
+    formula: earned_value - actual_cost
+    unit: currency
+    direction: higher_is_better
+    feasibility: external
+    thresholds: { good: 0, warn: -0.05, bad: -0.15 }
+    threshold_basis: fraction_of_BAC
+    interpretation: Negative means the project has spent more than the value it has delivered.
+
+  - id: profitability.schedule_variance
+    revision: 1
+    name: Schedule Variance
+    short_name: SV
+    formula: earned_value - planned_value
+    unit: currency
+    direction: higher_is_better
+    feasibility: external
+    interpretation: Expressed in currency by EVM convention, but it is a schedule signal.
+
+  - id: profitability.cpi
+    revision: 1
+    name: Cost Performance Index
+    short_name: CPI
+    formula: earned_value / actual_cost
+    unit: ratio
+    direction: higher_is_better
+    feasibility: external
+    benchmarks: { good: ">= 1.0", acceptable: "0.9–1.1", bad: "< 0.9" }
+    thresholds: { good: 1.0, warn: 0.9, bad: 0.8 }
+    interpretation: >-
+      Cost efficiency of delivered work. Empirically stable after roughly 20% completion, which
+      makes it the most reliable early predictor of final cost.
+
+  - id: profitability.spi
+    revision: 1
+    name: Schedule Performance Index
+    short_name: SPI
+    formula: earned_value / planned_value
+    unit: ratio
+    direction: higher_is_better
+    feasibility: external
+    thresholds: { good: 1.0, warn: 0.95, bad: 0.85 }
+    caveats: [SPI converges to 1.0 at project end regardless of lateness. Stop trusting it in the final 10%.]
+
+  - id: profitability.eac
+    revision: 1
+    name: Estimate at Completion
+    short_name: EAC
+    formula: BAC / CPI
+    unit: currency
+    direction: lower_is_better
+    feasibility: external
+    interpretation: >-
+      The default formula assumes current cost efficiency persists. The engine also emits the
+      optimistic variant (AC + BAC − EV) and the pessimistic variant (AC + (BAC − EV) / (CPI × SPI))
+      so a range is presented rather than a single false-precision number.
+
+  - id: profitability.etc
+    revision: 1
+    name: Estimate to Complete
+    short_name: ETC
+    formula: estimate_at_completion - actual_cost
+    unit: currency
+    direction: lower_is_better
+    feasibility: external
+
+  - id: profitability.burn_rate
+    revision: 1
+    name: Budget Burn Rate
+    formula: actual_cost / BAC * 100
+    unit: percent
+    direction: target_band
+    feasibility: external
+    interpretation: >-
+      Only meaningful next to percent complete. 60% of budget consumed at 30% earned value is
+      the canonical early warning of overrun.
+    pairs_with: [profitability.earned_value]
+
+  - id: profitability.gross_margin
+    revision: 1
+    name: Gross Margin
+    formula: (revenue - actual_cost) / revenue * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: external
+    sources: [{ system: reference-data, entity: projects.yaml, field: contractRevenue }]
+    benchmarks: { good: "> 40%", warn: "20–40%", bad: "< 20%" }
+    thresholds: { good: 40, warn: 20, bad: 10 }
+
+  - id: profitability.cost_per_story_point
+    revision: 1
+    name: Cost per Story Point
+    formula: actual_cost / story_points_completed
+    unit: currency/point
+    direction: lower_is_better
+    feasibility: external
+    caveats:
+      - Comparable only within one team over time. Cross-team comparison is blocked by the engine
+        because story points are not a standard unit.
+
+  - id: profitability.cost_per_feature
+    revision: 1
+    name: Cost per Feature
+    formula: actual_cost / count(completed_features)
+    unit: currency/feature
+    direction: lower_is_better
+    feasibility: external
+
+  - id: profitability.effort_variance
+    revision: 1
+    name: Effort Variance
+    formula: (CompletedWork - OriginalEstimate) / OriginalEstimate * 100
+    unit: percent
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [OriginalEstimate, CompletedWork] }]
+    thresholds: { good: 20, warn: 40, bad: 75 }
+    interpretation: The one profitability-adjacent KPI computable from Azure DevOps alone.
+
+  - id: profitability.rate_realization
+    revision: 1
+    name: Rate Realisation
+    formula: actual_billed_rate / standard_rate * 100
+    unit: percent
+    direction: higher_is_better
+    feasibility: external
+    sources: [{ system: reference-data, entity: projects.yaml }]
+    thresholds: { good: 85, warn: 70, bad: 55 }
+    interpretation: Measures discounting and write-offs — margin erosion that never appears in delivery metrics.

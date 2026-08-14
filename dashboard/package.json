@@ -1,0 +1,21 @@
+{
+  "name": "ado-kpi-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "KPI dashboard for the Azure DevOps FinOps & Delivery Intelligence Agent. Runs standalone against the KPI server, and doubles as the Copilot Studio custom canvas.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .js,.vue"
+  },
+  "dependencies": {
+    "echarts": "^5.5.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.5"
+  }
+}

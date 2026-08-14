@@ -1,0 +1,16 @@
+{
+  "$comment": [
+    "Copy to prod.json / test.json / dev.json and fill in. These files hold no secrets:",
+    "authentication uses workload identity federation, so there is no client secret to store.",
+    "post-deploy.ps1 fails the run if a value that looks like a secret appears here."
+  ],
+  "environmentName": "Contoso — Production",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "entraClientId": "00000000-0000-0000-0000-000000000000",
+  "mcpEndpoint": "https://ado-kpi-mcp-prod.internal.contoso.com/mcp",
+  "defaultOrganization": "contoso",
+  "defaultPeriod": "last 90 days",
+  "dashboardOrigin": "https://ado-kpi-dashboard.internal.contoso.com",
+  "appInsightsConnectionString": "InstrumentationKey=...;IngestionEndpoint=https://...",
+  "securityGroupId": "00000000-0000-0000-0000-000000000000"
+}

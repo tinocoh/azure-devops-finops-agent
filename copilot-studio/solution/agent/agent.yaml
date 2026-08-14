@@ -1,0 +1,127 @@
+# Agent definition — source of truth for the Copilot Studio agent.
+#
+# Copilot Studio agents are authored in the maker portal and promoted as Dataverse solution
+# components. This file is the reviewable declaration of what that agent must contain: it is
+# what a pull request argues about, and what `scripts/verify-agent.ps1` asserts against the
+# deployed environment after import.
+#
+# Settings marked `solutionAware: false` are NOT carried by a solution and must be applied by
+# scripts/post-deploy.ps1 after every environment promotion (see ADR-0005).
+
+schemaVersion: 1
+name: ado-finops-delivery-intelligence
+displayName: Azure DevOps FinOps & Delivery Intelligence
+description: >-
+  Answers questions about engineering delivery performance, pipeline cost efficiency and
+  project profitability using Azure DevOps Analytics and Azure Cost Management.
+
+harness: standard
+orchestration: generative
+
+instructions:
+  source: ./instructions.md
+  maxCharacters: 8000
+
+# ── model ──────────────────────────────────────────────────────────────────────
+model:
+  # Deterministic-leaning: this agent reports numbers, it does not brainstorm.
+  temperature: 0.1
+  # Grounding is provided entirely by tools; no general-knowledge fallback.
+  allowGeneralKnowledge: false
+  contentModeration: high
+
+# ── tools ──────────────────────────────────────────────────────────────────────
+# Kept deliberately small. Copilot Studio tool-selection accuracy degrades beyond roughly
+# 30–40 total choices across tools, topics and connected agents.
+tools:
+  - kind: mcp
+    name: ado-kpi-server
+    reference: ../tools/mcp-ado-kpi-server.yaml
+    description: Azure DevOps KPI computation and cost analysis.
+
+knowledge:
+  # No knowledge sources. Every answer must be a computed figure with a period attached;
+  # a document retrieval path would let the agent answer from stale prose instead.
+  sources: []
+  allowFileUpload: false
+
+# ── topics ─────────────────────────────────────────────────────────────────────
+# Generative orchestration handles ordinary routing. Explicit topics exist only where
+# deterministic behaviour is required and must not be left to model discretion.
+topics:
+  - name: Conversation Start
+    file: ../topics/conversation-start.yaml
+  - name: Individual Performance Refusal
+    file: ../topics/individual-performance-refusal.yaml
+    note: >-
+      Safety-critical. This must be a topic rather than an instruction so the refusal cannot
+      be argued out of the model by a persistent user.
+  - name: Escalate To Human
+    file: ../topics/escalate-to-human.yaml
+
+# ── authentication ─────────────────────────────────────────────────────────────
+authentication:
+  mode: manual
+  provider: microsoftEntraIdV2
+  # Federated credential — no client secret is stored anywhere in this solution.
+  credentialType: federatedCredential
+  # `manual` mode is required to obtain User.AccessToken, which is exchanged
+  # on-behalf-of for Azure DevOps and Azure Resource Manager by the MCP server.
+  requiresUserAccessToken: true
+  scopes:
+    - 499b84ac-1321-427f-aa17-267ca6975798/user_impersonation  # Azure DevOps
+    - https://management.azure.com/user_impersonation           # Azure Cost Management
+  solutionAware: false   # must be re-applied by post-deploy.ps1
+
+# ── channels ───────────────────────────────────────────────────────────────────
+channels:
+  - name: microsoftTeams
+    enabled: true
+    sso: true
+  - name: microsoft365Copilot
+    enabled: true
+  - name: directLine
+    enabled: true
+    # Consumed by the KPI dashboard as a custom canvas.
+    enhancedAuthentication: true
+    trustedOrigins:
+      - https://REPLACE-WITH-DASHBOARD-HOST
+    solutionAware: false   # must be re-applied by post-deploy.ps1
+
+# ── observability ──────────────────────────────────────────────────────────────
+telemetry:
+  applicationInsights:
+    enabled: true
+    logConversationDetails: false   # transcript text is not shipped to App Insights
+    connectionStringEnvironmentVariable: cr_adoKpi_appInsightsConnectionString
+    solutionAware: false            # must be re-applied by post-deploy.ps1
+
+# ── environment variables (solution-aware) ─────────────────────────────────────
+environmentVariables:
+  - name: adoKpi_mcpEndpoint
+    displayName: KPI MCP server endpoint
+    type: string
+    required: true
+    example: https://ado-kpi-mcp-prod.azurewebsites.net/mcp
+  - name: adoKpi_defaultOrganization
+    displayName: Default Azure DevOps organisation
+    type: string
+    required: true
+  - name: adoKpi_defaultPeriod
+    displayName: Default reporting period
+    type: string
+    defaultValue: last 90 days
+  - name: adoKpi_dashboardUrl
+    displayName: KPI dashboard URL
+    type: string
+    required: false
+
+# ── governance ─────────────────────────────────────────────────────────────────
+governance:
+  dlpPolicy: ado-kpi-restricted
+  # The agent must not be publishable without authentication: these KPIs are commercially
+  # sensitive and, for the team domain, employment-sensitive.
+  allowAnonymousAccess: false
+  sharing: securityGroup
+  purviewAuditing: true
+  contentSafety: default

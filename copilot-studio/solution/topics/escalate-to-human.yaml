@@ -1,0 +1,43 @@
+# Escalation — hand off when the agent cannot or should not answer.
+#
+# Two distinct cases are routed here: a data gap the user cannot fix themselves (missing
+# reference data, a broken tagging contract) and a question that is legitimately outside
+# scope. Both end with a named owner rather than an apology.
+
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: escalate-to-human
+  intent:
+    triggerQueries:
+      - this number looks wrong
+      - the data is missing
+      - who owns this metric
+      - I need help with the setup
+      - the KPI is unavailable
+      - who do I ask about this
+      - report a problem
+      - the tagging is broken
+
+  actions:
+    - kind: SendActivity
+      id: routing
+      activity: |-
+        Here is who owns what:
+
+        | Problem | Owner | What they need from you |
+        | --- | --- | --- |
+        | A KPI shows as unavailable | Platform engineering | The KPI name and the missing input I listed |
+        | Cost is attributed to the wrong project | Cloud platform team | The resource group and the expected `ado-project` tag |
+        | Budget, rate or revenue is wrong | Finance partner | The project key and the corrected figure |
+        | DORA metrics look implausible | Platform engineering | Whether your production pipelines match the production selector |
+        | A number contradicts a Power BI report | Platform engineering | Both figures and the period each covers |
+
+        Most "wrong number" reports turn out to be a period mismatch or a missing convention
+        rather than a calculation error — I'll tell you exactly which inputs I used if you ask
+        me to explain a specific KPI.
+
+    - kind: EndDialog
+
+inputType: {}
+outputType: {}

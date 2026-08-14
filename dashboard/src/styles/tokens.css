@@ -1,0 +1,170 @@
+/*
+ * Design tokens.
+ *
+ * The previous FinOps agent shipped a chat window with charts injected into the transcript.
+ * This interface inverts that: the dashboard is the product and the conversation is a panel
+ * beside it. The token set below exists so status colour, spacing and elevation are decided
+ * once rather than re-invented per component — the specific failure of the 8,500-line
+ * single-file view it replaces.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces */
+  --bg: #0b0f17;
+  --surface: #141b26;
+  --surface-2: #1b2432;
+  --surface-3: #232e3e;
+  --border: #2a3648;
+  --border-strong: #3a4a61;
+
+  /* text */
+  --text: #e8eef7;
+  --text-muted: #9aa9bf;
+  --text-faint: #6b7c94;
+
+  /* brand */
+  --accent: #4c9aff;
+  --accent-soft: rgba(76, 154, 255, 0.14);
+  --accent-strong: #0b63ce;
+
+  /* status — chosen for contrast on dark AND light, and distinguishable
+     for the most common forms of colour vision deficiency when paired
+     with the glyph and the delta arrow */
+  --good: #3fb950;
+  --good-soft: rgba(63, 185, 80, 0.14);
+  --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, 0.14);
+  --bad: #f85149;
+  --bad-soft: rgba(248, 81, 73, 0.14);
+  --neutral: #6b7c94;
+  --neutral-soft: rgba(107, 124, 148, 0.14);
+
+  /* geometry */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --gap: 16px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.24);
+
+  --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Code", "SF Mono", Consolas, monospace;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f7f9fc;
+  --surface-3: #eef2f8;
+  --border: #dbe2ec;
+  --border-strong: #c2cddd;
+  --text: #101927;
+  --text-muted: #55637a;
+  --text-faint: #7d8ba1;
+  --accent: #0b63ce;
+  --accent-soft: rgba(11, 99, 206, 0.1);
+  --good: #1a7f37;
+  --good-soft: rgba(26, 127, 55, 0.1);
+  --warn: #9a6700;
+  --warn-soft: rgba(154, 103, 0, 0.1);
+  --bad: #cf222e;
+  --bad-soft: rgba(207, 34, 46, 0.1);
+  --shadow: 0 1px 2px rgba(16, 25, 39, 0.06), 0 8px 24px rgba(16, 25, 39, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Respect the user's motion preference — a dashboard that animates on every
+   refresh is actively hostile to people with vestibular disorders. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.status-good { color: var(--good); }
+.status-warn { color: var(--warn); }
+.status-bad { color: var(--bad); }
+.status-unknown,
+.status-unavailable { color: var(--text-faint); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.chip-good { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.chip-warn { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+.chip-bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+.chip-neutral { background: var(--neutral-soft); color: var(--text-muted); border-color: var(--border-strong); }
+.chip-accent { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

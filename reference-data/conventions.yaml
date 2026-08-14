@@ -1,0 +1,35 @@
+# Conventions — how this organisation encodes meaning in Azure DevOps.
+#
+# Several DORA and FinOps KPIs are only "derived" rather than "native" precisely because
+# Azure DevOps has no built-in notion of "production" or "billable". These selectors are how
+# the engine learns your convention instead of guessing it.
+
+# ── cost allocation ────────────────────────────────────────────────────────────
+projectTagKey: ado-project
+teamTagKey: ado-team
+
+# ── effort classification ──────────────────────────────────────────────────────
+billableTag: billable
+
+# Used by focus factor to convert story points into an hours-equivalent.
+# Calibrate against your own history; it is a local constant, not an industry figure.
+hoursPerStoryPoint: 6
+
+# A non-production resource below this average utilisation is treated as idle.
+idleUtilizationThreshold: 5
+
+# ── what counts as a production deployment ─────────────────────────────────────
+# Any single match qualifies the run. Without this block, DORA deployment frequency,
+# change failure rate and lead time all report as unavailable rather than guessing.
+productionSelector:
+  pipelineNamePattern: "release|deploy-prod|prod-"
+  stageNamePattern: "^Production$|^Prod$"
+  environmentNamePattern: "^prod"
+  tag: production
+
+# ── what counts as a production incident ───────────────────────────────────────
+# Drives mean time to restore and escaped defects.
+incidentSelector:
+  workItemType: Bug
+  tag: production-incident
+  priorityAtOrBelow: 2

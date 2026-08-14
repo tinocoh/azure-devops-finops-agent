@@ -1,0 +1,25 @@
+# Rate card — the money inputs Azure DevOps does not hold.
+#
+# Everything here is an approved organisational input. The KPI engine never infers a rate:
+# if a value is absent, the affected KPI reports itself unavailable and names the missing key.
+# That is deliberate — a fabricated blended rate produces a board-ready number that is wrong.
+
+currency: USD
+
+# Fully loaded cost per engineering hour: salary, employer contributions, benefits and
+# overhead allocation. Used for Actual Cost in every earned-value calculation.
+blendedLoadedRate: 95
+
+# Azure Pipelines Microsoft-hosted parallel jobs.
+parallelJobMonthlyCost: 40
+parallelJobCount: 5
+
+# Self-hosted agent fleet size, used for agent pool utilisation.
+# Can alternatively be read from the TaskAgentPoolSizeSnapshots preview entity.
+selfHostedAgentCount: 6
+
+# Azure Artifacts storage. The consumed-GB figure is not exposed by a stable REST endpoint,
+# so it is supplied here from organisation settings.
+artifactStorageGb: 14
+artifactStorageFreeGb: 2
+artifactStorageRatePerGb: 2

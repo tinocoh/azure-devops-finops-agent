@@ -1,0 +1,99 @@
+# Domain 2 of 8: Flow metrics (Lean / SAFe / Azure Boards Analytics)
+domain:
+  id: flow
+  name: Flow Metrics
+  order: 2
+  description: >-
+    How work moves through the system. Flow metrics are the most directly available domain in
+    Azure DevOps because Analytics pre-computes LeadTimeDays and CycleTimeDays.
+  audience: [scrum-master, delivery-manager, engineering-lead]
+
+kpis:
+  - id: flow.velocity
+    revision: 1
+    name: Flow Velocity
+    short_name: Throughput
+    formula: count(work_items where StateCategory = 'Completed') / iteration
+    formula_display: "Throughput = completed work items ÷ iteration"
+    unit: items/iteration
+    direction: higher_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [StateCategory, CompletedDate] }]
+    benchmarks: { target: "stable rolling 3-iteration average" }
+    interpretation: >-
+      Judge stability, not magnitude. A rising trend is only meaningful if item size is stable;
+      always read alongside flow distribution.
+    caveats:
+      - Never compare velocity between teams. Item sizing is team-local by definition.
+
+  - id: flow.flow_time
+    revision: 1
+    name: Flow Time
+    short_name: Lead Time
+    formula: percentile_50(LeadTimeDays)
+    formula_display: "Flow time = median(LeadTimeDays) — creation to done"
+    unit: days
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [LeadTimeDays] }]
+    benchmarks: { good: "user story < 3 days", warn: "3–10 days", bad: "> 10 days" }
+    thresholds: { good: 3, warn: 10, bad: 20 }
+    percentiles: [50, 85, 95]
+    interpretation: >-
+      Report P50 and P85 together. P85 is what a stakeholder actually experiences when asking
+      "when will this be done"; P50 flatters the team.
+
+  - id: flow.cycle_time
+    revision: 1
+    name: Cycle Time
+    formula: percentile_50(CycleTimeDays)
+    formula_display: "Cycle time = median(CycleTimeDays) — in-progress to done"
+    unit: days
+    direction: lower_is_better
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [CycleTimeDays] }]
+    thresholds: { good: 2, warn: 7, bad: 14 }
+    percentiles: [50, 85, 95]
+
+  - id: flow.flow_efficiency
+    revision: 1
+    name: Flow Efficiency
+    formula: (sum(CycleTimeDays) / sum(LeadTimeDays)) * 100
+    formula_display: "Flow efficiency = active time ÷ total elapsed time × 100"
+    unit: percent
+    direction: higher_is_better
+    feasibility: derived
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [CycleTimeDays, LeadTimeDays] }]
+    benchmarks: { good: "> 40%", typical: "15–25%", bad: "< 10%" }
+    thresholds: { good: 40, warn: 20, bad: 10 }
+    interpretation: >-
+      The single most under-used metric here. Low flow efficiency means work is waiting, not that
+      people are slow — the fix is queue and hand-off design, never pressure on individuals.
+
+  - id: flow.flow_load
+    revision: 1
+    name: Flow Load (WIP)
+    formula: count(work_items where StateCategory = 'InProgress') at point_in_time
+    formula_display: "WIP = items in progress at a point in time"
+    unit: items
+    direction: target_band
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItemSnapshot }]
+    benchmarks: { target: "<= 1.5 × team size" }
+    interpretation: >-
+      By Little's Law, cycle time = WIP ÷ throughput. Reducing WIP is the fastest lever on cycle
+      time and requires no productivity change whatsoever.
+
+  - id: flow.flow_distribution
+    revision: 1
+    name: Flow Distribution
+    formula: (count(items by type) / count(all items)) * 100
+    formula_display: "Distribution = share of completed work by item type"
+    unit: percent
+    direction: target_band
+    feasibility: native
+    sources: [{ system: azure-devops-analytics, entity: WorkItems, fields: [WorkItemType] }]
+    benchmarks: { target: "feature ~60%, defect ~20%, debt ~20% — set per portfolio" }
+    interpretation: >-
+      The value-versus-maintenance balance. A portfolio with 5% technical debt investment is
+      borrowing against future flow time.

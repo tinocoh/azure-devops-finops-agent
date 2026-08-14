@@ -1,0 +1,180 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "_comment": [
+    "Scorecard summary card. Adaptive Cards cannot render a chart, so this card deliberately",
+    "does not attempt one: it presents the scored summary as data and links out to the",
+    "dashboard for visuals. Attempting a fake chart with column bars renders inconsistently",
+    "across Teams, M365 Copilot and the web canvas."
+  ],
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${scopeLabel}",
+              "weight": "Bolder",
+              "size": "Medium",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "${periodLabel}",
+              "isSubtle": true,
+              "spacing": "None",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${overallScore}",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "horizontalAlignment": "Right",
+              "color": "${if(overallScore >= 75, 'Good', if(overallScore >= 50, 'Warning', 'Attention'))}"
+            },
+            {
+              "type": "TextBlock",
+              "text": "out of 100",
+              "isSubtle": true,
+              "size": "Small",
+              "spacing": "None",
+              "horizontalAlignment": "Right"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Headline",
+          "weight": "Bolder",
+          "size": "Small",
+          "isSubtle": true
+        },
+        {
+          "type": "Table",
+          "firstRowAsHeaders": false,
+          "showGridLines": false,
+          "columns": [
+            { "width": 3 },
+            { "width": 2 },
+            { "width": 2 }
+          ],
+          "rows": [
+            {
+              "$data": "${headline}",
+              "type": "TableRow",
+              "cells": [
+                {
+                  "type": "TableCell",
+                  "items": [
+                    { "type": "TextBlock", "text": "${name}", "wrap": true, "size": "Small" }
+                  ]
+                },
+                {
+                  "type": "TableCell",
+                  "items": [
+                    {
+                      "type": "TextBlock",
+                      "text": "${formattedValue}",
+                      "weight": "Bolder",
+                      "horizontalAlignment": "Right",
+                      "color": "${if(status == 'good', 'Good', if(status == 'warn', 'Warning', if(status == 'bad', 'Attention', 'Default')))}"
+                    }
+                  ]
+                },
+                {
+                  "type": "TableCell",
+                  "items": [
+                    {
+                      "type": "TextBlock",
+                      "text": "${movement}",
+                      "size": "Small",
+                      "isSubtle": true,
+                      "horizontalAlignment": "Right"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "FactSet",
+          "facts": [
+            { "$data": "${domains}", "title": "${name}", "value": "${score}/100" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Small",
+      "isVisible": "${count(warnings) > 0}",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Data quality",
+          "weight": "Bolder",
+          "size": "Small",
+          "isSubtle": true
+        },
+        {
+          "type": "TextBlock",
+          "$data": "${warnings}",
+          "text": "• ${$data}",
+          "wrap": true,
+          "size": "Small",
+          "isSubtle": true,
+          "spacing": "None"
+        }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "Catalog ${catalogVersion} · ${completeness}% of KPIs computed",
+      "size": "Small",
+      "isSubtle": true,
+      "wrap": true,
+      "separator": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Open dashboard",
+      "url": "${dashboardUrl}"
+    },
+    {
+      "type": "Action.Submit",
+      "title": "What should I worry about?",
+      "data": { "text": "What should I worry about?" }
+    }
+  ]
+}
