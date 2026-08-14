@@ -126,8 +126,13 @@ Mitigations:
 ## Supply chain
 
 - Dependabot on all package ecosystems.
-- CodeQL on TypeScript.
-- `npm audit` in CI, failing on high severity.
+- CodeQL on TypeScript. **Note:** CodeQL requires GitHub Advanced Security on private
+  repositories. The workflow therefore runs by default on public repositories only; enable it
+  on a private fork by setting the `ENABLE_CODEQL` repository variable to `true` once GHAS is
+  licensed.
+- Dependency auditing in CI, split by intent: **production dependencies are gated strictly**
+  at moderate severity because they ship, while the full tree is reported as a warning. An
+  advisory in the test toolchain should not block a release it can never reach.
 - Container image pinned by digest in production deployments.
 - No `postinstall` scripts in the dependency set.
 

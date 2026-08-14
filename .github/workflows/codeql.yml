@@ -18,6 +18,13 @@ jobs:
   analyze:
     name: Analyze ${{ matrix.language }}
     runs-on: ubuntu-latest
+
+    # CodeQL requires GitHub Advanced Security on private repositories. Without it the run
+    # fails with a configuration error that says nothing about the code, which trains people
+    # to ignore red builds. Public repositories get it for free, so scan there by default and
+    # let a private repository opt in by setting the ENABLE_CODEQL variable once GHAS is on.
+    if: github.event.repository.private == false || vars.ENABLE_CODEQL == 'true'
+
     strategy:
       fail-fast: false
       matrix:
