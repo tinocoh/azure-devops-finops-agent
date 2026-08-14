@@ -42,10 +42,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      # A KPI computed by a formula nobody reviewed is the failure mode this whole
-      # repository is designed to prevent.
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
+      # A vulnerability in the shipped dependency set is a release blocker. One in the test
+      # toolchain is not — it never reaches a deployed artefact — so production dependencies
+      # are gated strictly and the full tree is reported without failing the build.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit full dependency tree (report only)
+        run: npm audit --audit-level=high || echo "::warning::Advisories present in development dependencies. Review before release."
 
   catalog:
     name: KPI catalog integrity
@@ -89,8 +93,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit full dependency tree (report only)
+        run: npm audit --audit-level=high || echo "::warning::Advisories present in development dependencies. Review before release."
 
   copilot-studio:
     name: Copilot Studio assets

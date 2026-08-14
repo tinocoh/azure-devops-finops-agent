@@ -364,6 +364,13 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (privateNetworkin
 
 // ── budget guardrail ─────────────────────────────────────────────────────────────
 // A FinOps product that does not budget its own consumption would be difficult to defend.
+
+@description('Budget start date. Must be the first of a month. Defaults to the current month.')
+param budgetStartDate string = '${substring(utcNow('yyyy-MM-dd'), 0, 8)}01'
+
+@description('Email addresses notified when the budget threshold is reached. Role-based contacts alone do not satisfy the API contract.')
+param budgetContactEmails array = []
+
 resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
   name: 'budget-${name}-${environment}'
   properties: {
@@ -371,13 +378,14 @@ resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
     amount: environment == 'prod' ? 500 : 100
     timeGrain: 'Monthly'
     timePeriod: {
-      startDate: '${substring(utcNow('yyyy-MM-dd'), 0, 8)}01'
+      startDate: budgetStartDate
     }
     notifications: {
       forecastExceeded: {
         enabled: true
         operator: 'GreaterThan'
         threshold: 90
+        contactEmails: budgetContactEmails
         contactRoles: ['Owner', 'Contributor']
         thresholdType: 'Forecasted'
       }
@@ -385,6 +393,7 @@ resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
         enabled: true
         operator: 'GreaterThan'
         threshold: 100
+        contactEmails: budgetContactEmails
         contactRoles: ['Owner']
         thresholdType: 'Actual'
       }
