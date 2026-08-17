@@ -17,6 +17,7 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "node scripts/mcp-smoke.mjs",
     "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
