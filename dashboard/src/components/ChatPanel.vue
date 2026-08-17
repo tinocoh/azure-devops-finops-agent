@@ -33,11 +33,11 @@ const mode = ref(props.directLineToken ? 'connected' : 'offline');
 let conversation = null;
 
 const SUGGESTIONS = [
+  'List all the projects',
+  'What should I focus on right now?',
   'How are we doing overall?',
-  'What is our change failure rate?',
   'Where is pipeline money being wasted?',
   'Are we on budget?',
-  'Anything I should worry about?',
 ];
 
 function push(role, text, meta = {}) {
@@ -103,7 +103,117 @@ async function sendConnected(text) {
 
 const INTENTS = [
   {
-    match: /overall|how are we|health|summary|status/i,
+    // Deliberately before the health intent: "status of all projects" must not be
+    // captured by the single-scope health answer.
+    match: /\b(list|show|which|what)\b.*\bprojects?\b|\ball (the )?projects?\b|\bportfolio\b|\bprojects?\b.*\b(status|health|doing)\b/i,
+    run: async () => {
+      const { projects } = await api.scopes(props.scope.organization);
+      if (!projects?.length) return 'No projects are visible for this organisation.';
+
+      // One scorecard per project. Trends are skipped — this is a comparison view, and
+      // requesting trends here would multiply the work for no visible gain.
+      const rows = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const card = await api.scorecard(
+              { organization: props.scope.organization, project: project.name },
+              props.period,
+              { trend: false },
+            );
+            const weakest = [...card.domains]
+              .filter((d) => d.score !== null)
+              .sort((a, b) => a.score - b.score)[0];
+            return {
+              name: project.name,
+              teams: project.teams?.length ?? 0,
+              score: card.overallScore,
+              weakest: weakest?.name ?? '—',
+              weakestScore: weakest?.score ?? null,
+            };
+          } catch {
+            return { name: project.name, teams: project.teams?.length ?? 0, score: null, weakest: '—' };
+          }
+        }),
+      );
+
+      rows.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+
+      // A list rather than a Markdown table: the panel is ~356px wide, and the safe
+      // renderer here handles bold and line breaks only. A four-column table would be
+      // both cramped and rendered as raw pipes.
+      const list = rows
+        .map((r) => {
+          const glyph = r.score === null ? '⚪' : r.score >= 75 ? '🟢' : r.score >= 50 ? '🟡' : '🔴';
+          const weakest =
+            r.weakest === '—'
+              ? ''
+              : `\n   weakest: ${r.weakest}${r.weakestScore !== null ? ` (${Math.round(r.weakestScore)}/100)` : ''}`;
+          const teams = r.teams > 0 ? ` · ${r.teams} team${r.teams === 1 ? '' : 's'}` : '';
+          return `${glyph} **${r.name}** — ${r.score ?? 'not scored'}${r.score !== null ? '/100' : ''}${teams}${weakest}`;
+        })
+        .join('\n\n');
+
+      const worst = rows[0];
+      return (
+        `**${rows.length} projects — ${props.period}**\n\n${list}\n\n` +
+        (worst && worst.score !== null
+          ? `Lowest is **${worst.name}** at ${worst.score}/100, dragged down by ${worst.weakest}. ` +
+            'Select it in the project filter to drill in.'
+          : '')
+      );
+    },
+  },
+  {
+    // "what should I focus on", "top priorities", "what is critical" — this exists because
+    // without it the word "focus" fell through to a KPI-name match and confidently
+    // returned Focus Factor, which answers a completely different question.
+    match: /\b(focus|prioriti|priority|critical|urgent|attention|most important|top \d*\s*(issue|problem|thing|item)s?)\b/i,
+    run: () => {
+      const s = props.scorecard;
+      if (!s) return 'The scorecard has not loaded yet.';
+
+      const bad = allKpis()
+        .filter((k) => k.status === 'bad' && k.value !== null)
+        // Deteriorating problems outrank stable ones: a bad number getting worse is
+        // where attention actually changes the outcome.
+        .sort((a, b) => {
+          const worsening = (k) => (k.improving === false ? 0 : 1);
+          if (worsening(a) !== worsening(b)) return worsening(a) - worsening(b);
+          return Math.abs(b.deltaPercent ?? 0) - Math.abs(a.deltaPercent ?? 0);
+        })
+        .slice(0, 5);
+
+      if (bad.length === 0) {
+        return (
+          `Nothing is in the red for ${scopeName()} over ${props.period}. ` +
+          `Overall health is ${s.overallScore}/100. The weakest domain is ` +
+          `**${[...s.domains].filter((d) => d.score !== null).sort((a, b) => a.score - b.score)[0]?.name}**.`
+        );
+      }
+
+      const lines = bad
+        .map((k) => {
+          const move =
+            k.deltaPercent === null || k.deltaPercent === undefined
+              ? ''
+              : k.improving === false
+                ? ` — worsening ${Math.abs(k.deltaPercent).toFixed(1)}%`
+                : ` — improving ${Math.abs(k.deltaPercent).toFixed(1)}%`;
+          return `- **${k.name}**: ${formatValue(k.value, k.unit)}${move}`;
+        })
+        .join('\n');
+
+      const worsening = bad.filter((k) => k.improving === false).length;
+      return (
+        `**${bad.length} KPI(s) need attention — ${scopeName()}, ${props.period}**\n\n${lines}\n\n` +
+        (worsening > 0
+          ? `${worsening} of these are still getting worse — start there.`
+          : 'None are deteriorating further, so these are chronic rather than acute.')
+      );
+    },
+  },
+  {
+    match: /overall|how are we|health|summary|status|doing/i,
     run: () => {
       const s = props.scorecard;
       if (!s) return 'The scorecard has not loaded yet.';
@@ -190,21 +300,82 @@ async function sendOffline(text) {
   }
 
   // Fall back to matching a KPI by name.
-  const kpis = allKpis();
-  const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter((w) => w.length > 3);
-  const hit = kpis.find((k) => words.some((w) => k.name.toLowerCase().includes(w)));
+  //
+  // This used to accept any word over three characters against any part of a KPI name,
+  // which meant "what should I focus on" matched "Focus Factor" and answered a completely
+  // different question with total confidence. A wrong answer that looks right is the worst
+  // failure mode a metrics tool has, so the matching is now scored, stop-worded, and
+  // explicit whenever it is guessing.
+  const STOP_WORDS = new Set([
+    'what', 'whats', 'which', 'where', 'when', 'should', 'right', 'this', 'that', 'there',
+    'here', 'have', 'been', 'with', 'from', 'about', 'into', 'over', 'more', 'most', 'much',
+    'many', 'some', 'them', 'they', 'their', 'your', 'ours', 'tell', 'show', 'give', 'need',
+    'want', 'help', 'know', 'look', 'like', 'just', 'only', 'also', 'very', 'really', 'now',
+    'today', 'please', 'could', 'would', 'does', 'doing', 'make', 'made', 'take', 'good',
+    'best', 'worst', 'high', 'time', 'rate', 'cost',
+  ]);
 
-  if (hit) {
+  const kpis = allKpis();
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !STOP_WORDS.has(w));
+
+  const scored = kpis
+    .map((k) => {
+      const name = k.name.toLowerCase();
+      const nameTokens = name.split(/[^a-z]+/).filter(Boolean);
+      let score = 0;
+
+      // Whole KPI name appearing in the question is decisive.
+      if (name.length > 4 && text.toLowerCase().includes(name)) score += 100;
+
+      for (const w of words) {
+        // Exact token match is strong; a substring match is weak and only counts a little.
+        if (nameTokens.includes(w)) score += 10;
+        else if (name.includes(w)) score += 2;
+      }
+      return { kpi: k, score };
+    })
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+
+  // A single weak token ("cost", "focus") is not enough to commit to an answer.
+  if (best && best.score >= 10) {
+    const runnersUp = scored.slice(1, 4).filter((c) => c.score >= 10);
+    const hit = best.kpi;
     const movement =
       hit.deltaPercent !== null && hit.deltaPercent !== undefined
         ? ` — ${hit.improving ? 'improving' : 'deteriorating'} by ${Math.abs(hit.deltaPercent).toFixed(1)}% versus the previous period`
         : '';
+
+    const alternatives =
+      runnersUp.length > 0
+        ? `\n\nAlso matched: ${runnersUp.map((c) => c.kpi.name).join(', ')}.`
+        : '';
+
     push(
       'agent',
-      hit.value === null
+      (hit.value === null
         ? `**${hit.name}** is not available. ${hit.unavailableReason}`
-        : `**${hit.name}** is **${formatValue(hit.value, hit.unit)}**${movement}.`,
+        : `**${hit.name}** is **${formatValue(hit.value, hit.unit)}**${movement}.`) + alternatives,
       { local: true, kpiId: hit.kpiId },
+    );
+    return;
+  }
+
+  // Weak match: say it is a guess rather than presenting it as the answer.
+  if (best) {
+    push(
+      'agent',
+      `I'm not confident I understood that. The closest KPI I have is **${best.kpi.name}** ` +
+        `(${formatValue(best.kpi.value, best.kpi.unit)}) — but that may not be what you meant.\n\n` +
+        'Try: *list all the projects*, *what should I focus on*, *where is pipeline money ' +
+        'being wasted*, *are we on budget*, or name a KPI directly.',
+      { local: true, kpiId: best.kpi.kpiId },
     );
     return;
   }
@@ -212,9 +383,10 @@ async function sendOffline(text) {
   push(
     'agent',
     'This is the **offline responder**, not the Copilot Studio agent — it matches a small set ' +
-      'of intents against the loaded scorecard. Try asking about overall health, pipeline ' +
-      'waste, budget and margin, or anything to worry about. Connect a Direct Line token to ' +
-      'talk to the real agent.',
+      'of intents against the loaded scorecard.\n\n' +
+      'Try: *list all the projects*, *what should I focus on right now*, *how are we doing ' +
+      'overall*, *where is pipeline money being wasted*, *are we on budget*, or *anything I ' +
+      'should worry about*. Connect a Direct Line token to talk to the real agent.',
     { local: true },
   );
 }
